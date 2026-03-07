@@ -1,0 +1,55 @@
+# Dockerfile for Cloud Prediction Service
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+
+# Set working directory
+WORKDIR /app
+
+# Install Python and dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN pip3 install --upgrade pip
+
+# Copy requirements
+COPY requirements.txt /app/
+
+# Install PyTorch and dependencies
+RUN pip3 install --no-cache-dir torch==2.0.1+cu118 torchvision==0.15.2+cu118 \
+    --index-url https://download.pytorch.org/whl/cu118
+
+# Install other dependencies
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Install PyTorch Geometric
+RUN pip3 install --no-cache-dir \
+    torch-geometric \
+    torch-scatter \
+    torch-sparse
+
+# Copy application code
+COPY models/ /app/models/
+COPY inference/ /app/inference/
+COPY configs/ /app/configs/
+COPY utils/ /app/utils/
+
+# Copy cloud service script
+COPY deployment/cloud/cloud_service.py /app/
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV CUDA_VISIBLE_DEVICES=0
+
+# Expose metrics port
+EXPOSE 9092
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python3 -c "import requests; requests.get('http://localhost:9092/health')"
+
+# Run cloud service
+CMD ["python3", "cloud_service.py", "--config", "configs/inference_config.yaml"]

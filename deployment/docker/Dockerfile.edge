@@ -1,0 +1,49 @@
+# Dockerfile for Edge Deployment (NVIDIA Jetson)
+FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    libopencv-dev \
+    python3-opencv \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt /app/
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Install TensorRT optimization tools
+RUN pip3 install --no-cache-dir \
+    nvidia-tensorrt \
+    pycuda
+
+# Copy application code
+COPY models/ /app/models/
+COPY inference/ /app/inference/
+COPY configs/ /app/configs/
+COPY utils/ /app/utils/
+
+# Copy edge-specific scripts
+COPY deployment/edge/edge_service.py /app/
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV CUDA_VISIBLE_DEVICES=0
+
+# Expose ports for metrics
+EXPOSE 9091
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python3 -c "import requests; requests.get('http://localhost:9091/health')"
+
+# Run edge service
+CMD ["python3", "edge_service.py", "--config", "configs/inference_config.yaml"]

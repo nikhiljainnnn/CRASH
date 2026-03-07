@@ -1,0 +1,261 @@
+# Inference Configuration for Crash Detection System
+
+# Model Paths
+models:
+  detection: "models/detection/yolov8_small_tensorrt.engine"
+  tracking: "models/tracking/bytetrack.pth"
+  temporal: "models/temporal/mstt_ca.pth"
+  gnn: "models/graph/st_gnn.pth"
+  fusion: "models/fusion/multimodal_fusion.pth"
+  risk_scorer: "models/risk/bayesian_scorer.pth"
+  severity: "models/severity/severity_classifier.pth"
+
+# Input Configuration
+input:
+  source_type: "rtsp"  # rtsp, video, webcam, images
+  source: "rtsp://192.168.1.100:554/stream"
+  
+  # Video properties
+  fps: 30
+  resolution: [1920, 1080]
+  
+  # Buffer size
+  buffer_size: 90  # frames
+  
+  # Camera calibration
+  calibration_file: "configs/camera_calibration.yaml"
+
+# Edge Processing Configuration
+edge:
+  enabled: true
+  device: "cuda:0"  # cuda:0, cpu
+  
+  # Detection
+  detection:
+    confidence_threshold: 0.3
+    nms_threshold: 0.45
+    max_detections: 100
+    
+  # Tracking
+  tracking:
+    max_age: 30  # frames
+    min_hits: 3
+    iou_threshold: 0.3
+    
+  # Speed estimation
+  speed_estimation:
+    enabled: true
+    smoothing_alpha: 0.7
+    
+  # Anomaly detection
+  anomaly:
+    sudden_decel_threshold: -4.0  # m/s²
+    swerve_threshold: 3.0  # m/s² lateral
+    tailgating_ttc: 2.0  # seconds
+    
+  # Risk pre-filtering
+  risk_filter:
+    enabled: true
+    threshold: 0.7
+    send_to_cloud: true
+
+# Cloud Processing Configuration
+cloud:
+  enabled: true
+  endpoint: "http://cloud-api:8000"
+  
+  # Temporal model
+  temporal:
+    sequence_length: 90
+    overlap: 15
+    
+  # GNN
+  gnn:
+    spatial_radius: 30.0
+    update_interval: 1  # frames
+    
+  # Bayesian inference
+  bayesian:
+    mc_samples: 30
+    temperature: 1.2
+    
+  # Multi-camera fusion
+  multi_camera:
+    enabled: false
+    correlation_radius: 50.0  # meters
+
+# Alert Configuration
+alerts:
+  # Thresholds
+  thresholds:
+    critical: 0.9
+    high: 0.8
+    medium: 0.6
+    low: 0.4
+    
+  # Actions
+  actions:
+    critical:
+      - "emergency_dispatch"
+      - "traffic_signal_control"
+      - "v2x_broadcast"
+      - "local_warning"
+    high:
+      - "emergency_standby"
+      - "v2x_broadcast"
+      - "local_warning"
+    medium:
+      - "monitor_closely"
+      - "log_event"
+    low:
+      - "log_event"
+  
+  # Emergency dispatch
+  emergency:
+    api_endpoint: "http://emergency-api:8000/dispatch"
+    api_key: "${EMERGENCY_API_KEY}"
+    
+  # V2X communication
+  v2x:
+    enabled: false
+    frequency: 5.9  # GHz
+    range: 300  # meters
+
+# Output Configuration
+output:
+  # Video output
+  save_video: true
+  output_path: "results/output.mp4"
+  codec: "mp4v"
+  draw_detections: true
+  draw_tracks: true
+  draw_risk_heatmap: true
+  draw_explanations: true
+  
+  # Logging
+  log_events: true
+  log_path: "logs/events.json"
+  
+  # Database
+  database:
+    enabled: false
+    type: "postgresql"  # postgresql, mongodb
+    host: "localhost"
+    port: 5432
+    database: "crash_detection"
+    
+  # Streaming
+  stream:
+    enabled: false
+    rtmp_url: "rtmp://streaming-server/live"
+
+# Explainability Configuration
+explainability:
+  enabled: true
+  
+  # Grad-CAM
+  gradcam:
+    enabled: true
+    target_layer: "backbone.layer4"
+    
+  # Attention visualization
+  attention:
+    enabled: true
+    visualize_temporal: true
+    visualize_spatial: true
+    visualize_graph: true
+    
+  # Counterfactuals
+  counterfactuals:
+    enabled: true
+    max_perturbation: 0.2
+    
+  # Natural language explanations
+  nlp_explanation:
+    enabled: true
+    template: "Crash predicted due to: {factors}. Confidence: {confidence:.2%}"
+
+# Performance Optimization
+optimization:
+  # Model optimization
+  use_tensorrt: true
+  use_fp16: false
+  use_int8: true
+  
+  # Batching
+  batch_size: 1
+  dynamic_batching: false
+  
+  # Threading
+  num_threads: 4
+  
+  # Memory
+  memory_limit_mb: 4096
+  clear_cache_interval: 100  # frames
+
+# Monitoring
+monitoring:
+  enabled: true
+  
+  # Metrics
+  metrics:
+    - "fps"
+    - "latency"
+    - "detection_count"
+    - "crash_alerts"
+    - "confidence_distribution"
+    
+  # Prometheus
+  prometheus:
+    enabled: true
+    port: 9090
+    
+  # Logging
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_file: "logs/inference.log"
+
+# Debugging
+debug:
+  enabled: false
+  save_intermediate: false
+  visualize_features: false
+  profile_performance: false
+
+# Privacy
+privacy:
+  blur_faces: true
+  blur_plates: true
+  anonymize_tracking_ids: true
+  
+# Network
+network:
+  # Kafka
+  kafka:
+    enabled: false
+    bootstrap_servers: ["localhost:9092"]
+    topic: "crash_events"
+    
+  # MQTT
+  mqtt:
+    enabled: false
+    broker: "localhost"
+    port: 1883
+    topic: "crash/alerts"
+    
+  # Redis (for caching)
+  redis:
+    enabled: false
+    host: "localhost"
+    port: 6379
+    db: 0
+
+# Latency Targets
+latency:
+  edge_target_ms: 25
+  cloud_target_ms: 75
+  network_target_ms: 10
+  total_target_ms: 100
+  
+  # Monitoring
+  track_latency: true
+  alert_if_exceeded: true

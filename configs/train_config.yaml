@@ -1,0 +1,192 @@
+# Training Configuration for Crash Detection System
+
+# Data Configuration
+data:
+  train_path: "data/processed/train"
+  val_path: "data/processed/val"
+  test_path: "data/processed/test"
+  batch_size: 32
+  num_workers: 8
+  pin_memory: true
+  
+  # Dataset splits
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  
+  # Sequence parameters
+  sequence_length: 90  # 3 seconds at 30 FPS
+  prediction_horizon: 90  # 3 seconds
+  overlap: 0.5
+  
+  # Augmentation
+  augmentation:
+    enabled: true
+    mosaic: true
+    mixup: true
+    random_flip: 0.5
+    color_jitter: 0.3
+    random_crop: true
+    cutout: 0.2
+    
+    # Weather augmentation
+    rain: true
+    fog: true
+    night: true
+
+# Model Configuration
+model:
+  # Detection
+  detection:
+    architecture: "yolov8"
+    variant: "small"  # nano, small, medium, large
+    pretrained: true
+    num_classes: 6  # car, truck, bus, motorcycle, bicycle, pedestrian
+    
+  # Tracking
+  tracking:
+    algorithm: "bytetrack"
+    track_buffer: 30
+    match_threshold: 0.8
+    
+  # Temporal Transformer
+  temporal:
+    architecture: "mstt_ca"  # Multi-Scale Temporal Transformer with Causal Attention
+    d_model: 256
+    n_heads: 8
+    n_layers: 6
+    dropout: 0.1
+    
+    # Multi-scale windows (in frames)
+    short_window: 8   # ~0.27s
+    medium_window: 16  # ~0.53s
+    long_window: 32    # ~1.07s
+    
+  # Graph Neural Network
+  gnn:
+    architecture: "st_gnn"  # Spatio-Temporal GNN
+    hidden_dim: 128
+    num_layers: 4
+    edge_dim: 16
+    aggregation: "attention"  # mean, max, attention
+    
+    # Graph construction
+    spatial_radius: 30.0  # meters
+    heading_threshold: 45.0  # degrees
+    
+  # Fusion
+  fusion:
+    type: "cross_modal_attention"  # early, late, cross_modal_attention
+    modalities: ["vision", "audio", "telemetry"]
+    
+  # Risk Scoring
+  risk:
+    bayesian: true
+    mc_samples: 30  # Monte Carlo dropout samples
+    temperature_scaling: true
+    
+  # Severity Classification
+  severity:
+    num_classes: 4  # minor, moderate, severe, critical
+    ordinal: true
+
+# Training Configuration
+training:
+  epochs: 200
+  warmup_epochs: 10
+  
+  # Optimizer
+  optimizer:
+    type: "adamw"
+    lr: 0.001
+    weight_decay: 0.0005
+    betas: [0.9, 0.999]
+    
+  # Learning rate scheduler
+  scheduler:
+    type: "cosine_annealing"
+    T_max: 200
+    eta_min: 0.00001
+    
+  # Loss weights
+  loss_weights:
+    detection: 1.0
+    tracking: 0.5
+    crash_classification: 2.0
+    severity: 1.0
+    trajectory: 1.0
+    temporal_smooth: 0.1
+    
+  # Focal loss (for class imbalance)
+  focal_loss:
+    alpha: 100  # Weight for crash class
+    gamma: 2.0
+    
+  # Gradient clipping
+  grad_clip: 1.0
+  
+  # Mixed precision training
+  mixed_precision: true
+  
+  # Distributed training
+  distributed: false
+  world_size: 1
+  
+# Validation Configuration
+validation:
+  val_interval: 1  # Validate every N epochs
+  save_best_only: true
+  metric: "f1_score"  # Metric to monitor
+  
+  # Metrics to compute
+  metrics:
+    - "precision"
+    - "recall"
+    - "f1_score"
+    - "auroc"
+    - "auprc"
+    - "average_precision"
+    - "time_to_detect"
+    - "false_alarm_rate"
+
+# Checkpointing
+checkpoint:
+  save_dir: "checkpoints"
+  save_interval: 10  # Save every N epochs
+  keep_last_n: 5
+  save_optimizer: true
+  
+# Logging
+logging:
+  use_tensorboard: true
+  use_wandb: true
+  wandb_project: "crash-detection"
+  wandb_entity: "your-team"
+  log_interval: 10  # Log every N batches
+  
+  # What to log
+  log_gradients: true
+  log_weights: false
+  log_images: true
+  log_videos: false
+
+# Early Stopping
+early_stopping:
+  enabled: true
+  patience: 20
+  min_delta: 0.001
+
+# Reproducibility
+seed: 42
+deterministic: true
+benchmark: false
+
+# Hardware
+device: "cuda"
+gpu_ids: [0]
+
+# Multiprocessing
+multiprocessing:
+  enabled: true
+  num_workers: 8
+  prefetch_factor: 2
