@@ -1,0 +1,19 @@
+# YOLO Dataset Config – KITTI (pre-organized in yolo_format/)
+# Path is the root that contains images/ and labels/ subdirs
+path: C:/Users/Nikhil Singhvi/OneDrive/Desktop/CRASH/Datasets/yolo_format
+
+train: images/train
+val: images/val
+
+nc: 10
+names:
+  0: car
+  1: truck
+  2: bus
+  3: motorcycle
+  4: bicycle
+  5: pedestrian
+  6: person_sitting
+  7: cyclist
+  8: tram
+  9: misc
