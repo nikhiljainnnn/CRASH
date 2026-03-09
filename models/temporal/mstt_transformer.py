@@ -59,7 +59,7 @@ class CausalMultiHeadAttention(nn.Module):
         
         # Apply mask (causal + padding)
         if mask is not None:
-            scores = scores.masked_fill(mask == 0, -1e9)
+            scores = scores.masked_fill(mask == 0, torch.finfo(scores.dtype).min)
         
         # Attention weights
         attention = F.softmax(scores, dim=-1)
