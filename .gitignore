@@ -73,10 +73,12 @@ checkpoints/
 logs/
 results/
 wandb/
+runs/
 *.pt
 *.pth
 *.engine
 *.onnx
+*.cache
 
 # Data and Datasets
 Datasets/
@@ -86,6 +88,15 @@ data/
 *.jpg
 *.jpeg
 *.png
+*.npy
+*.npz
+*.h5
+*.hdf5
+
+# Gemini / AI Assistants
+.gemini/
+.agents/
+.agent/
 
 # Jupyter Notebook
 .ipynb_checkpoints/
