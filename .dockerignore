@@ -1,0 +1,56 @@
+# ── Large Data & Datasets ────────────────────────────────────────────────────
+Datasets/
+data/raw/
+data/sequences/
+data/manifests/
+
+# ── Model Checkpoints (mount these as volumes instead) ───────────────────────
+# checkpoints/ is mounted via docker-compose volumes, don't bake into image
+checkpoints/
+
+# ── Training Outputs ─────────────────────────────────────────────────────────
+runs/
+*.npy
+*.cache
+*.h5
+*.hdf5
+
+# ── Python Cache ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# ── Virtual Environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Git ──────────────────────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── IDE / Editor ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.gemini/
+.agents/
+*.swp
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Temp / Test ──────────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp

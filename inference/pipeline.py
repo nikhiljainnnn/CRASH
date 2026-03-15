@@ -13,12 +13,36 @@ from collections import deque
 from pathlib import Path
 import argparse
 
+from ultralytics import YOLO
 from models.temporal.mstt_transformer import MSTT_CA
-from models.graph.st_gnn import ST_GNN
-from inference.edge.edge_detector import EdgeDetector
-from inference.edge.edge_tracker import EdgeTracker
-from inference.cloud.risk_scorer import RiskScorer
-from utils.visualization import draw_detections, draw_risk_heatmap
+from scripts.train_st_gnn import SimpleSTGNN
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def draw_detections(frame, detections):
+    """Draw bounding boxes on frame."""
+    for det in detections:
+        bbox = det.get('bbox', [])
+        if len(bbox) == 4:
+            x, y, w, h = [int(v) for v in bbox]
+            conf = det.get('confidence', 0)
+            cls = det.get('class', '')
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+            cv2.putText(frame, f"{cls} {conf:.2f}", (x, y-5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+    return frame
+
+
+def draw_risk_heatmap(frame, crash_prob, risk_level):
+    """Overlay a risk color bar on top of the frame."""
+    color = (0, 255, 0)
+    if risk_level == 'high':     color = (0, 165, 255)
+    if risk_level == 'critical': color = (0, 0, 255)
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, 0), (frame.shape[1], 8), color, -1)
+    cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
+    return frame
 
 
 class CrashDetectionPipeline:
@@ -66,87 +90,109 @@ class CrashDetectionPipeline:
         self.alert_history = []
         
     def _init_edge_components(self):
-        """Initialize edge processing components"""
-        # Object detector
-        self.detector = EdgeDetector(
-            model_path=self.config['models']['detection'],
-            conf_threshold=self.config['edge']['detection']['confidence_threshold'],
-            nms_threshold=self.config['edge']['detection']['nms_threshold'],
-            device=self.device
+        """Initialize edge processing components using YOLOv8."""
+        det_model_path = self.config.get('models', {}).get(
+            'detection', str(ROOT / 'checkpoints/detection/run/weights/best.pt')
         )
-        
-        # Object tracker
-        self.tracker = EdgeTracker(
-            max_age=self.config['edge']['tracking']['max_age'],
-            min_hits=self.config['edge']['tracking']['min_hits'],
-            iou_threshold=self.config['edge']['tracking']['iou_threshold']
-        )
-        
+        self.detector_model = YOLO(det_model_path) if Path(det_model_path).exists() else None
+        self.track_history = {}  # track_id -> history
+        self.next_track_id = 0
+
+    def _detect(self, frame):
+        """Run YOLOv8 detection on a frame."""
+        if self.detector_model is None:
+            return []
+        results = self.detector_model(frame, verbose=False)[0]
+        detections = []
+        for box in results.boxes:
+            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+            detections.append({
+                'bbox': [float(x1), float(y1), float(x2-x1), float(y2-y1)],
+                'confidence': float(box.conf[0]),
+                'class': results.names[int(box.cls[0])]
+            })
+        return detections
+
+    def _track(self, detections):
+        """Simple centroid-based tracker."""
+        tracks = []
+        for i, det in enumerate(detections):
+            track_id = self.next_track_id + i
+            bbox = det['bbox']
+            tracks.append({**det, 'track_id': track_id,
+                            'vx': 0.0, 'vy': 0.0, 'ax': 0.0, 'ay': 0.0,
+                            'heading': 0.0})
+        self.next_track_id += len(detections)
+        return tracks
+
     def _init_cloud_components(self):
-        """Initialize cloud processing components"""
-        # Temporal transformer
-        self.temporal_model = MSTT_CA(
-            input_dim=512,
-            d_model=256,
-            n_heads=8,
-            n_layers=4,
-            num_classes=2
-        ).to(self.device)
-        
-        # Load weights
-        checkpoint = torch.load(
-            self.config['models']['temporal'],
-            map_location=self.device
+        """Initialize cloud processing components."""
+        temporal_path = self.config.get('models', {}).get(
+            'temporal', str(ROOT / 'checkpoints/crash_predictor/best.pt')
         )
-        self.temporal_model.load_state_dict(checkpoint['model_state_dict'])
-        self.temporal_model.eval()
-        
-        # Graph neural network
-        self.graph_model = ST_GNN(
-            hidden_dim=128,
-            num_layers=4
-        ).to(self.device)
-        
-        checkpoint = torch.load(
-            self.config['models']['gnn'],
-            map_location=self.device
+        if Path(temporal_path).exists():
+            self.temporal_model = MSTT_CA(
+                input_dim=512, d_model=256, n_heads=8,
+                n_layers=4, num_classes=2
+            ).to(self.device)
+            checkpoint = torch.load(temporal_path, map_location=self.device, weights_only=False)
+            self.temporal_model.load_state_dict(
+                checkpoint['model_state_dict'], strict=False)
+            self.temporal_model.eval()
+        else:
+            self.temporal_model = None
+
+        gnn_path = self.config.get('models', {}).get(
+            'gnn', str(ROOT / 'checkpoints/st_gnn/best.pt')
         )
-        self.graph_model.load_state_dict(checkpoint['model_state_dict'])
-        self.graph_model.eval()
-        
-        # Risk scorer
-        self.risk_scorer = RiskScorer(
-            thresholds=self.config['alerts']['thresholds'],
-            mc_samples=self.config['cloud']['bayesian']['mc_samples']
+        if Path(gnn_path).exists():
+            self.graph_model = SimpleSTGNN(
+                node_dim=16, edge_dim=8, hidden=128, heads=4, n_layers=3
+            ).to(self.device)
+            checkpoint = torch.load(gnn_path, map_location=self.device, weights_only=False)
+            self.graph_model.load_state_dict(
+                checkpoint['model_state_dict'], strict=False)
+            self.graph_model.eval()
+        else:
+            self.graph_model = None
+
+        # Simple risk scorer
+        self.risk_thresholds = self.config.get('alerts', {}).get(
+            'thresholds', {'critical': 0.9, 'high': 0.7, 'medium': 0.5}
         )
-        
+        self.mc_samples = self.config.get('cloud', {}).get(
+            'bayesian', {}).get('mc_samples', 5)
+
+    def _compute_risk(self, crash_prob, uncertainty=0):
+        """Map crash probability to risk level."""
+        score = crash_prob * (1 + uncertainty)
+        if score >= self.risk_thresholds.get('critical', 0.9):
+            level = 'critical'
+        elif score >= self.risk_thresholds.get('high', 0.7):
+            level = 'high'
+        elif score >= self.risk_thresholds.get('medium', 0.5):
+            level = 'medium'
+        elif score > 0.1:
+            level = 'low'
+        else:
+            level = 'none'
+        return {'level': level, 'score': float(score)}
+
     def process_frame(self, frame: np.ndarray) -> dict:
-        """
-        Process a single frame through the pipeline
-        
-        Args:
-            frame: (H, W, 3) RGB frame
-        
-        Returns:
-            dict with detection results and predictions
-        """
         start_time = time.time()
-        
-        # Edge processing - Detection
+
+        # Detection + Tracking
         det_start = time.time()
-        detections = self.detector.detect(frame)
+        detections = self._detect(frame)
         det_time = (time.time() - det_start) * 1000
-        
-        # Edge processing - Tracking
+
         track_start = time.time()
-        tracks = self.tracker.update(detections)
+        tracks = self._track(detections)
         track_time = (time.time() - track_start) * 1000
-        
-        # Extract features
+
         features = self._extract_features(frame, tracks)
         self.feature_buffer.append(features)
-        
-        # Check if enough frames for cloud processing
+
         result = {
             'detections': detections,
             'tracks': tracks,
@@ -155,62 +201,50 @@ class CrashDetectionPipeline:
             'time_to_collision': None,
             'alert': None
         }
-        
+
+
         if len(self.feature_buffer) >= self.config['data']['sequence_length']:
             # Cloud processing
             cloud_start = time.time()
             
-            if self.config['cloud']['enabled']:
-                # Prepare sequence
+            if self.config.get('cloud', {}).get('enabled', True) and \
+                    self.temporal_model is not None:
                 feature_sequence = torch.stack(
                     list(self.feature_buffer)
                 ).unsqueeze(0).to(self.device)
-                
-                # Temporal prediction
+
                 with torch.no_grad():
-                    temporal_out = self.temporal_model(
-                        feature_sequence,
-                        mc_samples=self.config['cloud']['bayesian']['mc_samples']
-                    )
-                
-                # Extract vehicle features for graph
+                    temporal_out = self.temporal_model(feature_sequence)
+
                 vehicle_features = self._get_vehicle_features(tracks)
-                
-                # Graph prediction
-                if vehicle_features is not None and len(vehicle_features) > 0:
+
+                if vehicle_features is not None and self.graph_model is not None:
                     with torch.no_grad():
-                        graph_out = self.graph_model(
-                            vehicle_features.unsqueeze(0).to(self.device)
-                        )
-                    risk_scores = graph_out['risk_scores']
+                        risk_seq = vehicle_features.unsqueeze(0).unsqueeze(0)
+                        g_risk, _ = self.graph_model(risk_seq[0])
+                    risk_scores = g_risk
                 else:
                     risk_scores = None
-                
-                # Risk scoring
+
                 crash_prob = temporal_out['probabilities'][0, 1].item()
-                uncertainty = temporal_out.get('uncertainty', torch.tensor([0.0]))[0].item()
-                
-                # Compute final risk
-                risk_info = self.risk_scorer.compute_risk(
-                    crash_probability=crash_prob,
-                    uncertainty=uncertainty,
-                    graph_risk=risk_scores.mean().item() if risk_scores is not None else 0.0
-                )
-                
+                uncertainty = temporal_out.get(
+                    'uncertainty', torch.tensor([0.0])
+                )[0].item() if 'uncertainty' in temporal_out else 0.0
+
+                risk_info = self._compute_risk(crash_prob, uncertainty)
+
                 result.update({
                     'crash_probability': crash_prob,
                     'uncertainty': uncertainty,
                     'risk_level': risk_info['level'],
                     'risk_score': risk_info['score'],
-                    'fusion_weights': temporal_out['fusion_weights'][0].cpu().numpy()
                 })
-                
-                # Generate alert if necessary
+
                 if risk_info['level'] in ['high', 'critical']:
                     alert = self._generate_alert(result, tracks)
                     result['alert'] = alert
                     self.alert_history.append(alert)
-            
+
             cloud_time = (time.time() - cloud_start) * 1000
             self.latency_tracker['cloud'].append(cloud_time)
         
