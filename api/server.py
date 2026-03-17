@@ -3,6 +3,13 @@ FastAPI Server for Crash Detection System
 Provides REST API endpoints for inference and monitoring
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,7 +25,7 @@ from prometheus_client import Counter, Histogram, Gauge, generate_latest
 from fastapi.responses import Response
 
 from models.temporal.mstt_transformer import MSTT_CA
-from models.graph.st_gnn import ST_GNN
+from scripts.train_st_gnn import SimpleSTGNN
 from inference.pipeline import CrashDetectionPipeline
 
 # Initialize FastAPI

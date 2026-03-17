@@ -1,0 +1,19 @@
+# Prometheus Configuration for CRASH Edge AI Inference
+
+global:
+  scrape_interval: 5s      # Scrape metrics every 5 seconds
+  evaluation_interval: 15s
+
+scrape_configs:
+  # The AI inference engine exposing FastAPI/Prometheus metrics at port 8001
+  - job_name: 'crash_inference'
+    static_configs:
+      - targets: ['crash_inference:8001']
+        labels:
+          environment: 'edge'
+          node: 'jetson-orin-nx'
+
+  # Monitor Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

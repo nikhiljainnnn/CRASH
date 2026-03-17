@@ -11,20 +11,41 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import numpy as np
-from tqdm import tqdm
-import wandb
 from pathlib import Path
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    def tqdm(x, **kwargs): return x
+
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.temporal.mstt_transformer import MSTT_CA
-from models.graph.st_gnn import ST_GNN
-from models.detection.yolo import YOLODetector
-from models.fusion.multimodal_fusion import MultimodalFusion
-from data.crash_dataset import CrashDataset
+from scripts.train_st_gnn import SimpleSTGNN as ST_GNN
 from models.utils.losses import FocalLoss, TemporalSmoothLoss
 from models.utils.metrics import compute_metrics
+
+# Optional modules (not yet implemented)
+try:
+    from models.detection.yolo import YOLODetector
+except ImportError:
+    YOLODetector = None
+
+try:
+    from models.fusion.multimodal_fusion import MultimodalFusion
+except ImportError:
+    MultimodalFusion = None
+
+try:
+    from data.crash_dataset import CrashDataset
+except ImportError:
+    CrashDataset = None
 
 
 class CrashPredictionSystem(nn.Module):

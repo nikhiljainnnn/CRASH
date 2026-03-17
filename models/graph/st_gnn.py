@@ -6,10 +6,20 @@ Models how crash risk propagates through vehicle interaction networks
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import add_self_loops, softmax
 from typing import Optional, Tuple
 import math
+
+try:
+    from torch_geometric.nn import MessagePassing
+    from torch_geometric.utils import add_self_loops, softmax
+    HAS_TORCH_GEOMETRIC = True
+except ImportError:
+    HAS_TORCH_GEOMETRIC = False
+    # Provide a stub base class so the file can be imported without torch_geometric
+    class MessagePassing(nn.Module):
+        def __init__(self, **kwargs): super().__init__()
+    def add_self_loops(*args, **kwargs): raise ImportError("torch_geometric is required for ST_GNN. Install via: pip install torch-geometric")
+    def softmax(*args, **kwargs): raise ImportError("torch_geometric is required for ST_GNN. Install via: pip install torch-geometric")
 
 
 class GraphAttentionLayer(MessagePassing):

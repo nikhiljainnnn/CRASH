@@ -74,7 +74,7 @@ logs/
 results/
 wandb/
 runs/
-*.pt
+checkpoints/**/*.pt
 *.pth
 *.engine
 *.onnx
@@ -83,7 +83,7 @@ runs/
 # Data and Datasets
 Datasets/
 data/
-*.csv
+Datasets/**/*.csv
 *.mp4
 *.jpg
 *.jpeg
