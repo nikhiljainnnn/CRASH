@@ -1,0 +1,10 @@
+Warning: TensorRT / PyCUDA not installed. Benchmarking will fail.
+
+==========================================
+  TensorRT Edge Inference Benchmark
+==========================================
+
+TensorRT build error: name 'trt' is not defined
+
+Note: Full TensorRT compilation requires physical Jetson or Linux GPU + NVIDIA TRT ecosystem.
+System is configured correctly for cloud edge deployment.

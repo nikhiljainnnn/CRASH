@@ -23,6 +23,37 @@ import json
 import time
 import argparse
 import numpy as np
+import torch
+import torch.nn as nn
+
+class CustomGRUCell(nn.Module):
+    """ONNX-safe manual GRU Cell. Traces into native ONNX MatMul/Sigmoid/Tanh ops."""
+    def __init__(self, input_size, hidden_size):
+        super(CustomGRUCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.weight_ih = nn.Parameter(torch.Tensor(3 * hidden_size, input_size))
+        self.weight_hh = nn.Parameter(torch.Tensor(3 * hidden_size, hidden_size))
+        self.bias_ih = nn.Parameter(torch.Tensor(3 * hidden_size))
+        self.bias_hh = nn.Parameter(torch.Tensor(3 * hidden_size))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        import math
+        stdv = 1.0 / math.sqrt(self.hidden_size) if self.hidden_size > 0 else 0
+        for weight in self.parameters():
+            weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input, hx):
+        gi = torch.mm(input, self.weight_ih.t()) + self.bias_ih
+        gh = torch.mm(hx, self.weight_hh.t()) + self.bias_hh
+        i_r, i_i, i_n = gi.chunk(3, 1)
+        h_r, h_i, h_n = gh.chunk(3, 1)
+        resetgate = torch.sigmoid(i_r + h_r)
+        inputgate = torch.sigmoid(i_i + h_i)
+        newgate = torch.tanh(i_n + resetgate * h_n)
+        hy = newgate + inputgate * (hx - newgate)
+        return hy
 from pathlib import Path
 
 import torch
@@ -220,7 +251,7 @@ class SimpleSTGNN(nn.Module):
         for i in range(n_layers):
             in_d = hidden if i == 0 else hidden * heads
             self.gat_layers.append(SimpleGATLayer(in_d, hidden, hidden, heads, dropout))
-            self.gru_cells.append(nn.GRUCell(hidden * heads, hidden * heads))
+            self.gru_cells.append(CustomGRUCell(hidden * heads, hidden * heads))
 
         self.risk_head = nn.Sequential(
             nn.Linear(hidden * heads, hidden),
@@ -246,9 +277,8 @@ class SimpleSTGNN(nn.Module):
         diff = positions.unsqueeze(0) - positions.unsqueeze(1)  # (N, N, 2)
         dist = diff.norm(dim=-1)  # (N, N)
 
-        # Adjacency: connect within radius
+        # Adjacency: connect within radius (self-loops are naturally included as dist=0 < radius)
         adj = (dist < radius).float()
-        adj.fill_diagonal_(1)  # self-loops
 
         # Edge features: [dist, rel_vel, heading_diff, ttc, same_lane, close, speed_i, speed_j]
         rel_vel = (velocities.unsqueeze(0) - velocities.unsqueeze(1)).norm(dim=-1)

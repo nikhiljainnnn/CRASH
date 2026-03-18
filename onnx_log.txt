@@ -1,0 +1,32 @@
+C:\Users\Nikhil Singhvi\OneDrive\Desktop\CRASH\models\temporal\mstt_transformer.py:277: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if x.size(1) >= window_size:
+C:\Users\Nikhil Singhvi\OneDrive\Desktop\CRASH\scripts\train_fusion.py:241: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if mc_samples > 1:
+
+==========================================
+  ONNX Exporter
+  Input  : checkpoints/fusion/best.pt
+  Output : checkpoints/fusion/model.onnx
+  Device : cuda:0
+==========================================
+
+1. Loading PyTorch model...
+2. Generating dummy inputs (B=1, T=10, N=6)...
+3. Tracing and exporting to ONNX...
+Traceback (most recent call last):
+  File "C:\Users\Nikhil Singhvi\OneDrive\Desktop\CRASH\scripts\export_onnx.py", line 84, in main
+    print(f"\n\u2705 Successfully exported ONNX model to: {output_path}")
+  File "C:\Users\Nikhil Singhvi\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 2: character maps to <undefined>
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Nikhil Singhvi\OneDrive\Desktop\CRASH\scripts\export_onnx.py", line 91, in <module>
+    main()
+  File "C:\Users\Nikhil Singhvi\OneDrive\Desktop\CRASH\scripts\export_onnx.py", line 88, in main
+    print(f"\n\u274c Export failed: {str(e)}")
+  File "C:\Users\Nikhil Singhvi\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u274c' in position 2: character maps to <undefined>
