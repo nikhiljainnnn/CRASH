@@ -67,7 +67,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "current_crash_risk",
+                    "expr": "crash_api_probability",
                     "legendFormat": "__auto",
                     "range": true,
                     "refId": "A"
@@ -159,7 +159,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "rate(crash_inference_processing_seconds_sum[1m]) / rate(crash_inference_processing_seconds_count[1m]) * 1000",
+                    "expr": "rate(crash_api_inference_latency_sum[1m]) / rate(crash_api_inference_latency_count[1m]) * 1000",
                     "legendFormat": "Latency (ms)",
                     "range": true,
                     "refId": "A"
@@ -224,7 +224,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "crash_detected_total",
+                    "expr": "crash_api_alerts_total",
                     "legendFormat": "__auto",
                     "range": true,
                     "refId": "A"

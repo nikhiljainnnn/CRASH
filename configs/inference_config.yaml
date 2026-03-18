@@ -2,11 +2,11 @@
 
 # Model Paths
 models:
-  detection: "models/detection/yolov8_small_tensorrt.engine"
+  detection: "yolov8s.pt"
   tracking: "models/tracking/bytetrack.pth"
-  temporal: "models/temporal/mstt_ca.pth"
-  gnn: "models/graph/st_gnn.pth"
-  fusion: "models/fusion/multimodal_fusion.pth"
+  temporal: "checkpoints/crash_predictor/best.pt"
+  gnn: "checkpoints/st_gnn/best.pt"
+  fusion: "checkpoints/fusion/best.pt"
   risk_scorer: "models/risk/bayesian_scorer.pth"
   severity: "models/severity/severity_classifier.pth"
 
@@ -20,7 +20,7 @@ input:
   resolution: [1920, 1080]
   
   # Buffer size
-  buffer_size: 90  # frames
+  buffer_size: 30  # frames
   
   # Camera calibration
   calibration_file: "configs/camera_calibration.yaml"
@@ -66,7 +66,7 @@ cloud:
   
   # Temporal model
   temporal:
-    sequence_length: 90
+    sequence_length: 30
     overlap: 15
     
   # GNN

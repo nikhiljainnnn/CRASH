@@ -1,0 +1,102 @@
+[
+  {
+    "name": "Real Crash Video 1",
+    "video_path": "Datasets\\videos-20260206T085121Z-1-002\\videos\\Crash-1500\\000001.mp4",
+    "scenario_type": "head_on",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 40
+    }
+  },
+  {
+    "name": "Real Crash Video 2",
+    "video_path": "Datasets\\videos-20260206T085121Z-1-002\\videos\\Crash-1500\\000002.mp4",
+    "scenario_type": "head_on",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 40
+    }
+  },
+  {
+    "name": "Real Crash Video 3",
+    "video_path": "Datasets\\videos-20260206T085121Z-1-002\\videos\\Crash-1500\\000003.mp4",
+    "scenario_type": "head_on",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 40
+    }
+  },
+  {
+    "name": "Real Crash Video 4",
+    "video_path": "Datasets\\videos-20260206T085121Z-1-002\\videos\\Crash-1500\\000004.mp4",
+    "scenario_type": "head_on",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 40
+    }
+  },
+  {
+    "name": "Real Crash Video 5",
+    "video_path": "Datasets\\videos-20260206T085121Z-1-002\\videos\\Crash-1500\\000005.mp4",
+    "scenario_type": "head_on",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 40
+    }
+  },
+  {
+    "name": "Real Normal Video 1",
+    "video_path": "Datasets\\Normal-001\\000001.mp4",
+    "scenario_type": "normal_traffic",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": false,
+      "crash_frame": null
+    }
+  },
+  {
+    "name": "Real Normal Video 2",
+    "video_path": "Datasets\\Normal-001\\000002.mp4",
+    "scenario_type": "normal_traffic",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": false,
+      "crash_frame": null
+    }
+  },
+  {
+    "name": "Real Normal Video 3",
+    "video_path": "Datasets\\Normal-001\\000003.mp4",
+    "scenario_type": "normal_traffic",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": false,
+      "crash_frame": null
+    }
+  },
+  {
+    "name": "Real Normal Video 4",
+    "video_path": "Datasets\\Normal-001\\000004.mp4",
+    "scenario_type": "normal_traffic",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": false,
+      "crash_frame": null
+    }
+  },
+  {
+    "name": "Real Normal Video 5",
+    "video_path": "Datasets\\Normal-001\\000005.mp4",
+    "scenario_type": "normal_traffic",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": false,
+      "crash_frame": null
+    }
+  }
+]

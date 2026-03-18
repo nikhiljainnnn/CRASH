@@ -75,6 +75,7 @@ results/
 wandb/
 runs/
 checkpoints/**/*.pt
+*.pt
 *.pth
 *.engine
 *.onnx
@@ -116,3 +117,13 @@ ipython_config.py
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Dashboard / Frontend 
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.env*
+
+# Generated Test Outputs
+test_results/
+test_results_real/
+test_results_real_benchmark/

@@ -22,7 +22,7 @@ import yaml
 from typing import Optional, List
 import time
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 
 from models.temporal.mstt_transformer import MSTT_CA
 from scripts.train_st_gnn import SimpleSTGNN
@@ -45,10 +45,11 @@ app.add_middleware(
 )
 
 # Prometheus metrics
-PREDICTION_COUNT = Counter('crash_predictions_total', 'Total number of predictions')
-CRASH_ALERTS = Counter('crash_alerts_total', 'Total number of crash alerts')
-INFERENCE_LATENCY = Histogram('inference_latency_seconds', 'Inference latency')
-CRASH_PROBABILITY = Gauge('crash_probability', 'Current crash probability')
+PREDICTION_COUNT = Counter('crash_api_predictions', 'Total number of predictions')
+CRASH_ALERTS = Counter('crash_api_alerts', 'Total number of crash alerts')
+INFERENCE_LATENCY = Histogram('crash_api_inference_latency', 'Inference latency')
+CRASH_PROBABILITY = Gauge('crash_api_probability', 'Current crash probability')
+CRASH_UNCERTAINTY = Gauge('crash_api_uncertainty', 'Current crash mathematical uncertainty')
 
 # Load configuration
 with open('configs/inference_config.yaml', 'r') as f:
@@ -91,6 +92,7 @@ class MetricsResponse(BaseModel):
     total_alerts: int
     avg_latency_ms: float
     avg_crash_probability: float
+    avg_uncertainty: float
 
 
 # Global state
@@ -106,6 +108,7 @@ async def root():
         "endpoints": {
             "predict": "/predict",
             "predict_batch": "/predict/batch",
+            "video_feed": "/video_feed",
             "health": "/health",
             "metrics": "/metrics",
             "prometheus": "/prometheus"
@@ -153,6 +156,7 @@ async def predict(request: PredictionRequest):
         # Update metrics
         PREDICTION_COUNT.inc()
         CRASH_PROBABILITY.set(result['crash_probability'])
+        CRASH_UNCERTAINTY.set(result.get('uncertainty', 0.0))
         
         if result.get('alert'):
             CRASH_ALERTS.inc()
@@ -164,8 +168,8 @@ async def predict(request: PredictionRequest):
             crash_probability=result['crash_probability'],
             risk_level=result['risk_level'],
             risk_score=result.get('risk_score', 0.0),
-            uncertainty=result.get('uncertainty'),
-            time_to_collision=result.get('time_to_collision'),
+            uncertainty=result.get('uncertainty', 0.0),
+            time_to_collision=result.get('time_to_collision', None),
             num_vehicles=len(result['detections']),
             detections=[
                 {
@@ -227,6 +231,80 @@ async def predict_batch(files: List[UploadFile] = File(...)):
     return {"results": results, "total": len(results)}
 
 
+async def generate_frames(camera_id: str = "CAM_01"):
+    """
+    Generator function that yields JPEG frames from a video source.
+    Currently streams a default video or camera, running it through the pipeline.
+    """
+    # Open default camera or a sample video file
+    cap = cv2.VideoCapture(0) # Change to video file path if needed
+    
+    # Try to set MJPG format for webcams if possible
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    
+    while True:
+        success, frame = cap.read()
+        if not success:
+            # If video ends, loop or break. Here we just wait and retry for webcams.
+            time.sleep(0.1)
+            continue
+            
+        # Optional: run through pipeline to get bounding boxes
+        # This will slow down the stream depending on GPU/CPU 
+        try:
+            result = pipeline.process_frame(frame)
+            # Update metrics automatically
+            CRASH_PROBABILITY.set(result['crash_probability'])
+            PREDICTION_COUNT.inc()
+            CRASH_UNCERTAINTY.set(result.get('uncertainty', 0.0))
+            if result.get('alert'):
+                CRASH_ALERTS.inc()
+                
+            # Draw detections (basic implementation)
+            for det in result['detections']:
+                bbox = det['bbox']
+                # Basic drawing - convert tensor/array back to int coords
+                if hasattr(bbox, 'cpu'):
+                    bbox = bbox.cpu().numpy()
+                x1, y1, x2, y2 = map(int, bbox[:4])
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                cv2.putText(frame, f"{det['class']} {det['confidence']:.2f}", 
+                           (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                           
+            # Draw risk level and uncertainty
+            uncertainty_text = f" (Unc: {result.get('uncertainty', 0.0):.2f})" if 'uncertainty' in result else ""
+            cv2.putText(frame, f"Risk: {result['risk_level']} ({result['crash_probability']:.2%}){uncertainty_text}", 
+                       (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, 
+                       (0, 0, 255) if result['crash_probability'] > 0.7 else (0, 255, 0), 2)
+        except Exception as e:
+            print(f"Pipeline error in stream: {e}")
+            pass
+
+        # Encode frame to JPEG
+        ret, buffer = cv2.imencode('.jpg', frame)
+        if not ret:
+            continue
+            
+        frame_bytes = buffer.tobytes()
+        
+        # Yield in MJPEG format
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+               
+        # Control framerate
+        time.sleep(0.05) 
+
+
+@app.get("/video_feed")
+async def video_feed(camera_id: str = "CAM_01"):
+    """
+    MJPEG streaming endpoint for live video feed
+    """
+    return StreamingResponse(
+        generate_frames(camera_id), 
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
 @app.get("/metrics", response_model=MetricsResponse)
 async def get_metrics():
     """Get aggregated metrics"""
@@ -234,7 +312,8 @@ async def get_metrics():
         total_predictions=int(PREDICTION_COUNT._value.get()),
         total_alerts=int(CRASH_ALERTS._value.get()),
         avg_latency_ms=np.mean(pipeline.latency_tracker['total']) if pipeline.latency_tracker['total'] else 0.0,
-        avg_crash_probability=CRASH_PROBABILITY._value.get()
+        avg_crash_probability=CRASH_PROBABILITY._value.get(),
+        avg_uncertainty=CRASH_UNCERTAINTY._value.get()
     )
 
 
@@ -314,10 +393,9 @@ async def get_config():
 def main():
     """Run the API server"""
     uvicorn.run(
-        "api.server:app",
+        app,
         host="0.0.0.0",
         port=8000,
-        reload=False,
         workers=1  # Single worker for GPU compatibility
     )
 

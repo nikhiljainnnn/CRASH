@@ -14,8 +14,8 @@ from pathlib import Path
 import argparse
 
 from ultralytics import YOLO
-from models.temporal.mstt_transformer import MSTT_CA
-from scripts.train_st_gnn import SimpleSTGNN
+import torchvision.transforms as T
+from scripts.train_fusion import CrashPredictionSystem
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -70,12 +70,12 @@ class CrashDetectionPipeline:
         
         # Frame buffer
         self.frame_buffer = deque(
-            maxlen=self.config['data']['buffer_size']
+            maxlen=self.config.get('input', {}).get('buffer_size', 90)
         )
         
         # Feature buffer
         self.feature_buffer = deque(
-            maxlen=self.config['data']['buffer_size']
+            maxlen=self.config.get('input', {}).get('buffer_size', 90)
         )
         
         # Performance tracking
@@ -127,34 +127,24 @@ class CrashDetectionPipeline:
 
     def _init_cloud_components(self):
         """Initialize cloud processing components."""
-        temporal_path = self.config.get('models', {}).get(
-            'temporal', str(ROOT / 'checkpoints/crash_predictor/best.pt')
+        fusion_path = self.config.get('models', {}).get(
+            'fusion', str(ROOT / 'checkpoints/fusion/best.pt')
         )
-        if Path(temporal_path).exists():
-            self.temporal_model = MSTT_CA(
-                input_dim=512, d_model=256, n_heads=8,
-                n_layers=4, num_classes=2
+        
+        self.fusion_model = None
+        if Path(fusion_path).exists():
+            print(f"Loading Fusion System from {fusion_path}")
+            self.fusion_model = CrashPredictionSystem(
+                d_model=256, n_heads=8, n_layers=4, dropout=0.0, freeze_backbone=True
             ).to(self.device)
-            checkpoint = torch.load(temporal_path, map_location=self.device, weights_only=False)
-            self.temporal_model.load_state_dict(
-                checkpoint['model_state_dict'], strict=False)
-            self.temporal_model.eval()
+            checkpoint = torch.load(fusion_path, map_location=self.device, weights_only=False)
+            self.fusion_model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+            self.fusion_model.eval()
+            self.normalize = T.Normalize(
+                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            )
         else:
-            self.temporal_model = None
-
-        gnn_path = self.config.get('models', {}).get(
-            'gnn', str(ROOT / 'checkpoints/st_gnn/best.pt')
-        )
-        if Path(gnn_path).exists():
-            self.graph_model = SimpleSTGNN(
-                node_dim=16, edge_dim=8, hidden=128, heads=4, n_layers=3
-            ).to(self.device)
-            checkpoint = torch.load(gnn_path, map_location=self.device, weights_only=False)
-            self.graph_model.load_state_dict(
-                checkpoint['model_state_dict'], strict=False)
-            self.graph_model.eval()
-        else:
-            self.graph_model = None
+            print(f"Warning: Fusion model not found at {fusion_path}")
 
         # Simple risk scorer
         self.risk_thresholds = self.config.get('alerts', {}).get(
@@ -203,33 +193,46 @@ class CrashDetectionPipeline:
         }
 
 
-        if len(self.feature_buffer) >= self.config['data']['sequence_length']:
+        seq_length = self.config.get('cloud', {}).get('temporal', {}).get('sequence_length', 30)
+        if len(self.feature_buffer) >= seq_length:
             # Cloud processing
             cloud_start = time.time()
             
-            if self.config.get('cloud', {}).get('enabled', True) and \
-                    self.temporal_model is not None:
-                feature_sequence = torch.stack(
-                    list(self.feature_buffer)
-                ).unsqueeze(0).to(self.device)
+            if self.config.get('cloud', {}).get('enabled', True) and self.fusion_model is not None:
+                # 1. Prepare visual sequence (B, T, 3, 224, 224)
+                visual_seq = torch.stack(list(self.feature_buffer)).unsqueeze(0).to(self.device)
+                
+                # 2. Prepare graph sequence (B, T_g, N, 16)
+                # For real-time inference, we approximate T_g by using the current frame's graph
+                # expanded over a short pseudo-temporal window, or just pass a single-step graph 
+                # (since SimpleSTGNN handles instantaneous risks). The Fusion Model expects (B, T_g, N, 16).
+                vehicle_features = self._get_vehicle_features(tracks)
+                
+                if vehicle_features is not None:
+                    # Pad to match training shape (T=10 logic from train_fusion)
+                    graph_seq = vehicle_features.unsqueeze(0).unsqueeze(0).expand(1, 10, -1, -1)
+                else:
+                    # Dummy graph if no vehicles
+                    graph_seq = torch.zeros((1, 10, 2, 16), device=self.device)
 
                 with torch.no_grad():
-                    temporal_out = self.temporal_model(feature_sequence)
+                    # Set model to train mode temporarily IF wanting MC-Dropout uncertainty
+                    if self.mc_samples > 1:
+                        self.fusion_model.train() 
+                    else:
+                        self.fusion_model.eval()
+                        
+                    fusion_out = self.fusion_model(visual_seq, graph_seq, mc_samples=self.mc_samples)
+                    
+                    self.fusion_model.eval() # restore eval
 
-                vehicle_features = self._get_vehicle_features(tracks)
-
-                if vehicle_features is not None and self.graph_model is not None:
-                    with torch.no_grad():
-                        risk_seq = vehicle_features.unsqueeze(0).unsqueeze(0)
-                        g_risk, _ = self.graph_model(risk_seq[0])
-                    risk_scores = g_risk
-                else:
-                    risk_scores = None
-
-                crash_prob = temporal_out['probabilities'][0, 1].item()
-                uncertainty = temporal_out.get(
-                    'uncertainty', torch.tensor([0.0])
-                )[0].item() if 'uncertainty' in temporal_out else 0.0
+                crash_prob = fusion_out['probabilities'][0, 1].item()
+                
+                # Fusion uncertainties
+                uncertainty = fusion_out.get('uncertainty', torch.tensor([0.0]))[0].item() if 'uncertainty' in fusion_out else 0.0
+                
+                # Graph specific Risk (Fused into alert logic)
+                raw_risk = fusion_out['gnn_risk'][0, 0].item()
 
                 risk_info = self._compute_risk(crash_prob, uncertainty)
 
@@ -237,7 +240,7 @@ class CrashDetectionPipeline:
                     'crash_probability': crash_prob,
                     'uncertainty': uncertainty,
                     'risk_level': risk_info['level'],
-                    'risk_score': risk_info['score'],
+                    'risk_score': raw_risk,
                 })
 
                 if risk_info['level'] in ['high', 'critical']:
@@ -264,27 +267,26 @@ class CrashDetectionPipeline:
     
     def _extract_features(self, frame: np.ndarray, tracks: list) -> torch.Tensor:
         """
-        Extract features from frame using CNN
+        Resize and normalize image for ResNet backbone
         
         Args:
             frame: (H, W, 3)
             tracks: List of track objects
         
         Returns:
-            features: (feature_dim,)
+            frames_t: (3, 224, 224) RGB PyTorch Tensor
         """
-        # Simple feature extraction (in production, use pretrained CNN)
-        # Resize and normalize
         frame_resized = cv2.resize(frame, (224, 224))
-        frame_norm = frame_resized.astype(np.float32) / 255.0
+        # Swap BGR to RGB
+        frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
         
-        # Convert to tensor
-        frame_tensor = torch.from_numpy(frame_norm).permute(2, 0, 1)
+        frames_t = torch.from_numpy(frame_rgb).float() / 255.0
+        frames_t = frames_t.permute(2, 0, 1) # HWC to CHW
         
-        # Extract features (placeholder - use actual CNN in production)
-        features = torch.randn(512)  # Placeholder
-        
-        return features
+        if hasattr(self, 'normalize'):
+            frames_t = self.normalize(frames_t)
+            
+        return frames_t
     
     def _get_vehicle_features(self, tracks: list) -> torch.Tensor:
         """
@@ -318,7 +320,9 @@ class CrashDetectionPipeline:
             heading = track.get('heading', 0.0)
             length = bbox[3]
             width = bbox[2]
-            class_id = track.get('class', 0)
+            
+            class_name = track.get('class', '')
+            class_id = 1.0 if class_name == 'car' else 2.0 if class_name in ['truck', 'bus'] else 0.0
             
             feat = torch.tensor([
                 x, y, vx, vy, ax, ay, heading, length, width,
@@ -327,7 +331,7 @@ class CrashDetectionPipeline:
             
             features.append(feat)
         
-        return torch.stack(features) if features else None
+        return torch.stack(features).to(self.device) if features else None
     
     def _generate_alert(self, result: dict, tracks: list) -> dict:
         """Generate alert information"""

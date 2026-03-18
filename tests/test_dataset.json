@@ -1,0 +1,162 @@
+[
+  {
+    "name": "Rear-End collision 1",
+    "video_path": "tests/videos/rear_end_0.mp4",
+    "scenario_type": "rear_end",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Rear-End collision 2",
+    "video_path": "tests/videos/rear_end_1.mp4",
+    "scenario_type": "rear_end",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Rear-End collision 3",
+    "video_path": "tests/videos/rear_end_2.mp4",
+    "scenario_type": "rear_end",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Rear-End collision 4",
+    "video_path": "tests/videos/rear_end_3.mp4",
+    "scenario_type": "rear_end",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Rear-End collision 5",
+    "video_path": "tests/videos/rear_end_4.mp4",
+    "scenario_type": "rear_end",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Intersection crash 1",
+    "video_path": "tests/videos/intersection_0.mp4",
+    "scenario_type": "intersection",
+    "weather": "rain",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Intersection crash 2",
+    "video_path": "tests/videos/intersection_1.mp4",
+    "scenario_type": "intersection",
+    "weather": "rain",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Intersection crash 3",
+    "video_path": "tests/videos/intersection_2.mp4",
+    "scenario_type": "intersection",
+    "weather": "rain",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Pedestrian incident 1",
+    "video_path": "tests/videos/pedestrian_0.mp4",
+    "scenario_type": "pedestrian",
+    "weather": "fog",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Pedestrian incident 2",
+    "video_path": "tests/videos/pedestrian_1.mp4",
+    "scenario_type": "pedestrian",
+    "weather": "fog",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Sideswipe collision 1",
+    "video_path": "tests/videos/sideswipe_0.mp4",
+    "scenario_type": "sideswipe",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Head-on collision 1",
+    "video_path": "tests/videos/head_on_0.mp4",
+    "scenario_type": "head_on",
+    "weather": "night",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Multi-vehicle pileup 1",
+    "video_path": "tests/videos/multi_0.mp4",
+    "scenario_type": "multi_vehicle",
+    "weather": "snow",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Multi-vehicle pileup 2",
+    "video_path": "tests/videos/multi_1.mp4",
+    "scenario_type": "multi_vehicle",
+    "weather": "snow",
+    "ground_truth": {
+      "crash_occurred": true,
+      "crash_frame": 120
+    }
+  },
+  {
+    "name": "Normal traffic 1",
+    "video_path": "tests/videos/normal_0.mp4",
+    "scenario_type": "normal_traffic",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": false,
+      "crash_frame": null
+    }
+  },
+  {
+    "name": "Normal traffic 2",
+    "video_path": "tests/videos/normal_1.mp4",
+    "scenario_type": "normal_traffic",
+    "weather": "clear",
+    "ground_truth": {
+      "crash_occurred": false,
+      "crash_frame": null
+    }
+  }
+]

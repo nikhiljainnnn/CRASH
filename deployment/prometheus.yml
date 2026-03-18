@@ -5,10 +5,11 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # The AI inference engine exposing FastAPI/Prometheus metrics at port 8001
+  # The AI inference engine exposing FastAPI/Prometheus metrics at port 8000
   - job_name: 'crash_inference'
+    metrics_path: '/prometheus'
     static_configs:
-      - targets: ['crash_inference:8001']
+      - targets: ['crash_inference:8000']
         labels:
           environment: 'edge'
           node: 'jetson-orin-nx'
